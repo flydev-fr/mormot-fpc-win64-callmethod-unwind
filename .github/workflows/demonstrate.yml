@@ -1,0 +1,167 @@
+# Demonstration workflow, not a conventional functional CI.
+#
+# Its job is to tell the story end to end on a clean Windows x64 runner:
+#   1. reproduce the two original issues against PRISTINE pinned mORMot
+#      (issue A: an ordinary service exception terminates the process
+#       because CallMethod has no RUNTIME_FUNCTION coverage;
+#       issue B: Currency 1234.5678 answers {"result":[0]});
+#   2. install the unwind-aware MASM replacement and prove the fix
+#      (final-PE binary gate + full 12-case ABI/exception suite);
+#   3. write a readable summary of both halves to the job summary page.
+#
+# The run fails if EITHER half stops holding: a vanished reproduction or a
+# failing fix both invalidate the demonstration.
+#
+# The pristine half never asserts a specific crash/exception code -- that
+# spelling is environment-dependent. The asserted symptom is that the
+# process dies before the exception case can complete.
+
+name: demonstrate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  demonstrate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install FPC (Lazarus 3.4 ships FPC 3.2.2)
+        uses: gcarreno/setup-lazarus@d633fa79b45e29794ab46ec31f7543e44e02efef # v3
+        with:
+          lazarus-version: "3.4"
+
+      - name: MSVC x64 environment (ml64.exe / dumpbin.exe)
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+
+      - name: Toolchain sanity
+        shell: pwsh
+        run: |
+          $v = (fpc -iV).Trim(); $to = (fpc -iTO).Trim(); $tp = (fpc -iTP).Trim()
+          Write-Host "fpc $v $tp-$to"
+          if (($v -ne '3.2.2') -or ($to -ne 'win64') -or ($tp -ne 'x86_64')) {
+            throw "demonstration requires FPC 3.2.2 win64/x86_64, got $v $tp-$to"
+          }
+          foreach ($tool in 'ml64.exe', 'dumpbin.exe') {
+            if (-not (Get-Command $tool -CommandType Application -ErrorAction SilentlyContinue)) {
+              throw "$tool not on PATH after the MSVC environment step"
+            }
+          }
+
+      - name: Disable WER UI (the pristine crash demo must not hang on a dialog)
+        shell: pwsh
+        run: |
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" `
+            /v DontShowUI /t REG_DWORD /d 1 /f | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'unable to configure WER' }
+
+      - name: Fetch pinned mORMot2 (exact SHA + sha256-pinned statics)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tools/get-mormot.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'dependency fetch failed' }
+
+      - name: "Act 1 - reproduce the bugs on pristine pinned CallMethod"
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tools/run-tests.ps1 -PristineRepro 2>&1 |
+            Tee-Object ci-pristine.log
+          if ($LASTEXITCODE -ne 0) {
+            throw 'pristine reproduction was NOT confirmed -- demonstration invalid'
+          }
+
+      - name: "Act 2 - prove the unwind-aware MASM replacement"
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tools/run-tests.ps1 2>&1 |
+            Tee-Object ci-fix.log
+          if ($LASTEXITCODE -ne 0) { throw 'patched suite failed' }
+
+      - name: Job summary
+        if: always()
+        shell: pwsh
+        run: |
+          function LogLines([string]$Path, [string]$Pattern) {
+            if (-not (Test-Path -LiteralPath $Path)) { return @() }
+            return @(Select-String -LiteralPath $Path -Pattern $Pattern |
+              ForEach-Object { $_.Line })
+          }
+          $pin = ((Get-Content mormot.lock | Where-Object { $_ -match '^\s*commit\s*=' }) `
+            -split '=', 2)[1].Trim()
+          $fpcV = (fpc -iV).Trim()
+
+          $priCases    = LogLines 'ci-pristine.log' '^CASE \d{2} '
+          $priCurrency = LogLines 'ci-pristine.log' 'DEBUG CurrencyResult'
+          $priExit     = LogLines 'ci-pristine.log' 'pristine process exit code'
+          $priConfirm  = LogLines 'ci-pristine.log' '^PRISTINE (ISSUE|REPRODUCTION)'
+          $fixGate     = LogLines 'ci-fix.log' '^\[binary gate\] '
+          $fixCases    = LogLines 'ci-fix.log' '^(CASE \d{2} |OVERLAP |CALLMETHOD-UNWIND: )'
+          $fixRestore  = LogLines 'ci-fix.log' '^\[restore\] RESTORED'
+
+          $issueB_pristine = [bool](LogLines 'ci-pristine.log' 'CASE 04 floating-return-kinds\s+FAIL')
+          $issueA_pristine = ($priExit.Count -gt 0) -and
+            ((LogLines 'ci-pristine.log' '^CASE 09 ').Count -eq 0)
+          $fixPassed  = [bool](LogLines 'ci-fix.log' 'CALLMETHOD-UNWIND: 12/12 PASS')
+          $gatePassed = [bool](LogLines 'ci-fix.log' '^\[binary gate\] PASS')
+
+          function Mark([bool]$BugShown, [string]$Shown, [string]$Missing) {
+            if ($BugShown) { return $Shown } else { return $Missing }
+          }
+
+          $md = [System.Collections.Generic.List[string]]::new()
+          $md.Add('# mORMot / FPC Win64 `CallMethod`: bug and fix demonstration')
+          $md.Add('')
+          $md.Add("*FPC $fpcV Win64 x86_64 - mORMot2 ``$pin`` - MASM ml64 - $(hostname)*")
+          $md.Add('')
+          $md.Add('| | pristine pinned `CallMethod` | unwind-aware MASM replacement |')
+          $md.Add('|---|---|---|')
+          $md.Add("| ordinary service exception | $(Mark $issueA_pristine ':boom: process terminated, no handler ran' ':warning: did not reproduce') | $(Mark $fixPassed ':white_check_mark: handled -- single raise, 1000/1000 sequential, concurrent stress' ':x: suite failed') |")
+          $md.Add("| Currency ``1234.5678`` result | $(Mark $issueB_pristine ':x: ``{""result"":[0]}`` (RAX overwritten from XMM0)' ':warning: did not reproduce') | $(Mark $fixPassed ':white_check_mark: ``{""result"":[1234.5678]}`` (RAX preserved)' ':x: suite failed') |")
+          $md.Add("| ``RUNTIME_FUNCTION`` over the trampoline | :x: none -- PE exception directory exists but has a gap over ``CallMethod`` | $(Mark $gatePassed ':white_check_mark: exact coverage, RBP frame, saved RBP/R12 (final PE, not just OBJ)' ':x: binary gate failed') |")
+          $md.Add('')
+
+          $md.Add('## Act 1 - pristine pinned mORMot (the two independent issues)')
+          $md.Add('')
+          $md.Add('The identical 12-case suite, compiled against the unmodified pinned')
+          $md.Add('dependency, run in a separate process:')
+          $md.Add('')
+          $md.Add('```text')
+          $priCases    | ForEach-Object { $md.Add($_) }
+          $priCurrency | ForEach-Object { $md.Add($_) }
+          $priExit     | ForEach-Object { $md.Add($_) }
+          $md.Add('```')
+          $md.Add('')
+          $priConfirm | ForEach-Object { $md.Add("> $_") }
+          $md.Add('')
+          $md.Add('The exact exit/exception code is environment-dependent and deliberately')
+          $md.Add('not asserted; the demonstrated symptom is that exception propagation')
+          $md.Add('cannot safely traverse pristine `CallMethod` (no `CASE 09` verdict is')
+          $md.Add('ever printed).')
+          $md.Add('')
+
+          $md.Add('## Act 2 - MASM replacement (prepare, binary gate, full suite, restore)')
+          $md.Add('')
+          $md.Add('```text')
+          $fixGate    | ForEach-Object { $md.Add($_) }
+          $fixCases   | ForEach-Object { $md.Add($_) }
+          $fixRestore | ForEach-Object { $md.Add($_) }
+          $md.Add('```')
+          $md.Add('')
+
+          $verdict = ($issueA_pristine -and $issueB_pristine -and
+            $fixPassed -and $gatePassed)
+          if ($verdict) {
+            $md.Add('## Verdict: :white_check_mark: demonstration holds')
+            $md.Add('')
+            $md.Add('Both issues reproduce on pristine pinned mORMot, and the replacement')
+            $md.Add('trampoline fixes both while passing the exact final-PE unwind gate.')
+          }
+          else {
+            $md.Add('## Verdict: :x: demonstration did NOT hold -- see failing step logs')
+          }
+          $md -join "`n" | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY

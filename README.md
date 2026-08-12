@@ -194,6 +194,11 @@ Any failure exits nonzero. The dependency is restored to the pristine pin
 in a `finally` block (skip with `-NoRestore` to inspect the prepared
 state).
 
+A GitHub Actions workflow (`.github/workflows/demonstrate.yml`) runs the
+same two halves on a clean `windows-latest` runner — first the pristine
+reproduction, then the fix — and writes a bug-vs-fix comparison to the job
+summary. It fails if either half stops holding.
+
 ## Expected results
 
 ```text
@@ -234,6 +239,7 @@ tools/restore.ps1               restore pristine pin, remove generated artifacts
 tools/check-unwind.ps1          final-PE RUNTIME_FUNCTION/.pdata/.xdata gate
 tools/run-tests.ps1             one-command workflow (+ -PristineRepro mode)
 docs/reference-results.md       recorded reference results
+.github/workflows/demonstrate.yml  bug-then-fix demonstration with job summary
 ```
 
 ## Scope and limitations

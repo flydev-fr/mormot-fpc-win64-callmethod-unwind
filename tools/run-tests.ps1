@@ -173,10 +173,8 @@ try {
             Write-Host 'PRISTINE ISSUE B NOT REPRODUCED: Currency did not return 0'
         }
         if ($unwindDefect) {
-            Write-Host 'PRISTINE ISSUE A REPRODUCED: process terminated before the'
-            Write-Host 'exception case could complete -- exception propagation cannot'
-            Write-Host 'safely traverse pristine CallMethod (the exact exception code'
-            Write-Host 'is environment-dependent and deliberately not asserted)'
+            Write-Host 'PRISTINE ISSUE A REPRODUCED: process terminated before the exception case could complete -- exception propagation cannot safely traverse pristine CallMethod'
+            Write-Host '(the exact exception code is environment-dependent and deliberately not asserted)'
         }
         else {
             Write-Host 'PRISTINE ISSUE A NOT REPRODUCED: the exception case ran to completion'
