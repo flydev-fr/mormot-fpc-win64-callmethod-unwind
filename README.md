@@ -148,6 +148,14 @@ rollback, and idempotent. `tools/restore.ps1` restores the pristine pinned
 source from the locked git commit — never from a backup file — and removes
 generated objects and PPUs. See `patches/README.md` for the exact shape.
 
+A distributable copy of the object for direct upstream inclusion is
+packaged by `tools/make-dist.ps1` as `dist/x64callmethod.o` (`.debug$S`
+stripped, timestamp zeroed, checksum file written). The binary is not
+committed: CI packages it after the demonstration passes and publishes it
+as a run artifact -- and as a GitHub release asset on tag builds --
+fingerprint-tied to the object that was just validated end-to-end. See
+`dist/README.md` for provenance and integration notes.
+
 ## Currency ABI issue
 
 The ABI matrix exposed a **second, independent** defect. These are two
@@ -197,7 +205,10 @@ state).
 A GitHub Actions workflow (`.github/workflows/demonstrate.yml`) runs the
 same two halves on a clean `windows-latest` runner — first the pristine
 reproduction, then the fix — and writes a bug-vs-fix comparison to the job
-summary. It fails if either half stops holding.
+summary. It fails if either half stops holding. After a green
+demonstration it also packages `dist/x64callmethod.o` (fingerprint-tied
+to the validated object), uploads it as the `x64callmethod-dist` run
+artifact, and attaches it to the GitHub release on tag builds.
 
 ## Expected results
 
@@ -231,6 +242,9 @@ recorded pristine-failure evidence.
 ```text
 mormot.lock                     exact mORMot2 pin + sha256-pinned statics
 src/x64callmethod.asm           MASM replacement trampoline (unwind + Currency)
+dist/README.md                  the packaged object: provenance, integration
+tools/make-dist.ps1             package dist/x64callmethod.o (not committed)
+
 patches/README.md               exact shape of the generated source change
 test/callmethod_unwind_test.pas 12-case ABI/exception suite over TRestServer.Uri()
 tools/get-mormot.ps1            deterministic pinned fetch into deps/mormot2

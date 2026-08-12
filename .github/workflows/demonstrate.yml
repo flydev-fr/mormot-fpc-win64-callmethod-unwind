@@ -7,7 +7,11 @@
 #       issue B: Currency 1234.5678 answers {"result":[0]});
 #   2. install the unwind-aware MASM replacement and prove the fix
 #      (final-PE binary gate + full 12-case ABI/exception suite);
-#   3. write a readable summary of both halves to the job summary page.
+#   3. package the distributable dist/x64callmethod.o (tools/make-dist.ps1)
+#      and refuse it unless its section-content fingerprint matches the
+#      object Act 2 just validated end-to-end; upload it as a run
+#      artifact, and attach it to the GitHub release on tag builds;
+#   4. write a readable summary of both halves to the job summary page.
 #
 # The run fails if EITHER half stops holding: a vanished reproduction or a
 # failing fix both invalidate the demonstration.
@@ -27,6 +31,8 @@ jobs:
   demonstrate:
     runs-on: windows-latest
     timeout-minutes: 30
+    permissions:
+      contents: write # gh release create/upload on tag builds
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -82,6 +88,52 @@ jobs:
             Tee-Object ci-fix.log
           if ($LASTEXITCODE -ne 0) { throw 'patched suite failed' }
 
+      - name: Package the distributable object (dist/x64callmethod.o)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tools/make-dist.ps1 2>&1 |
+            Tee-Object ci-dist.log
+          if ($LASTEXITCODE -ne 0) { throw 'packaging failed' }
+          function FirstFingerprint([string]$Path) {
+            $found = Select-String -LiteralPath $Path `
+              -Pattern 'fingerprint=([0-9A-F]{64})' | Select-Object -First 1
+            if ($null -eq $found) { throw "no fingerprint line in $Path" }
+            return $found.Matches[0].Groups[1].Value
+          }
+          $validated = FirstFingerprint 'ci-fix.log'
+          $packaged = FirstFingerprint 'ci-dist.log'
+          if ($validated -cne $packaged) {
+            throw "packaged object fingerprint $packaged does not match the end-to-end validated object $validated"
+          }
+          $tie = '[package] fingerprint matches the object Act 2 validated end-to-end in the final executable'
+          Write-Host $tie
+          Add-Content ci-dist.log $tie
+
+      - name: Upload the packaged object as a run artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: x64callmethod-dist
+          path: |
+            dist/x64callmethod.o
+            dist/x64callmethod.o.sha256
+            dist/README.md
+          if-no-files-found: error
+
+      - name: Attach the object to the GitHub release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title $tag --notes 'Pre-assembled x64callmethod.o, packaged by the demonstrate workflow after the bug/fix demonstration passed on this tag. See dist/README.md for provenance, validation and integration notes.'
+            if ($LASTEXITCODE -ne 0) { throw 'release creation failed' }
+          }
+          gh release upload $tag dist/x64callmethod.o dist/x64callmethod.o.sha256 --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'release upload failed' }
+
       - name: Job summary
         if: always()
         shell: pwsh
@@ -102,6 +154,7 @@ jobs:
           $fixGate     = LogLines 'ci-fix.log' '^\[binary gate\] '
           $fixCases    = LogLines 'ci-fix.log' '^(CASE \d{2} |OVERLAP |CALLMETHOD-UNWIND: )'
           $fixRestore  = LogLines 'ci-fix.log' '^\[restore\] RESTORED'
+          $distLines   = LogLines 'ci-dist.log' '^\[(make-dist|package)\] '
 
           $issueB_pristine = [bool](LogLines 'ci-pristine.log' 'CASE 04 floating-return-kinds\s+FAIL')
           $issueA_pristine = ($priExit.Count -gt 0) -and
@@ -152,6 +205,21 @@ jobs:
           $fixRestore | ForEach-Object { $md.Add($_) }
           $md.Add('```')
           $md.Add('')
+
+          if ($distLines.Count -gt 0) {
+            $md.Add('## Packaged artifact')
+            $md.Add('')
+            $md.Add('`dist/x64callmethod.o` -- assembled from `src/x64callmethod.asm`,')
+            $md.Add('stripped of `.debug$S`, timestamp zeroed, and refused unless its')
+            $md.Add('section-content fingerprint matches the object Act 2 validated')
+            $md.Add('end-to-end. Download it from this run''s `x64callmethod-dist`')
+            $md.Add('artifact (attached to the GitHub release on tag builds).')
+            $md.Add('')
+            $md.Add('```text')
+            $distLines | ForEach-Object { $md.Add($_) }
+            $md.Add('```')
+            $md.Add('')
+          }
 
           $verdict = ($issueA_pristine -and $issueB_pristine -and
             $fixPassed -and $gatePassed)
