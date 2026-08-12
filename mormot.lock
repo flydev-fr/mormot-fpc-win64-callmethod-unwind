@@ -1,0 +1,11 @@
+# Pinned mORMot2 dependency: the exact commit where the FPC Win64 CallMethod
+# unwind problem and the Currency return defect were reproduced and where the
+# replacement trampoline was validated. Fetched by tools/get-mormot.ps1 into
+# the git-ignored deps/mormot2 checkout; never a branch, tag or floating ref.
+url = https://github.com/synopse/mORMot2.git
+commit = b1a129b09197b6b9fb67c6d4d2a13445987a3fe1
+# Static .o/.a files required by FPC builds (mORMot's documented install
+# step). Release assets are mutable in principle, so the archive integrity
+# rests on the sha256 below, not on the URL.
+statics-url = https://github.com/synopse/mORMot2/releases/download/2.4-stable/mormot2static.tgz
+statics-sha256 = ae2d8da212c5b4f2778370de7aee965f7fd82eef911da27eeb797d6db06db449

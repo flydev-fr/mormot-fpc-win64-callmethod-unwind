@@ -1,0 +1,17 @@
+# pinned dependency checkout (fetched by tools/get-mormot.ps1)
+deps/
+
+# build outputs
+build/
+
+# generated binaries / compiler artifacts
+*.obj
+*.exe
+*.ppu
+*.o
+*.a
+*.map
+*.log
+*.res
+*.rsj
+*.dbg
