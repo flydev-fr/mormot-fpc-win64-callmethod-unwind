@@ -113,7 +113,23 @@ else {
     if (Test-Path $StaticDir) { Remove-Item -Recurse -Force $StaticDir }
     $Tgz = Join-Path $DepsDir 'mormot2static.tgz'
     Write-Host "downloading statics archive $StaticsUrl"
-    Invoke-WebRequest -Uri $StaticsUrl -OutFile $Tgz
+    # the download is sha256-verified below, so retrying a dropped
+    # connection (transient CDN/runner flakiness) is always safe
+    $Attempts = 4
+    for ($i = 1; $i -le $Attempts; $i++) {
+        try {
+            Invoke-WebRequest -Uri $StaticsUrl -OutFile $Tgz
+            break
+        }
+        catch {
+            if (Test-Path $Tgz) { Remove-Item -Force $Tgz }
+            if ($i -eq $Attempts) {
+                throw "statics download failed after $Attempts attempts: $($_.Exception.Message)"
+            }
+            Write-Host "download attempt $i failed ($($_.Exception.Message)); retrying"
+            Start-Sleep -Seconds (5 * $i)
+        }
+    }
     $Got = (Get-FileHash -Algorithm SHA256 $Tgz).Hash.ToLowerInvariant()
     if ($Got -ne $StaticsSha) {
         Remove-Item -Force $Tgz
