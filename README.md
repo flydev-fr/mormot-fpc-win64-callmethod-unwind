@@ -1,5 +1,15 @@
 # FPC Win64 unwind issue in mORMot CallMethod
 
+**Update**: fixed by commit [896f1c1](https://github.com/synopse/mORMot2/commit/896f1c1c66653c5c995ec9790117f0d6b8eeb427)  
+To confirm it, I pointed mormot.lock at this commit (statics pin unchanged), fetched it, and ran `run-tests.ps1 -PristineRepro` - the same 12-case suite, compiled against unmodified upstream source, no MASM replacement, no define. 
+
+**Results**:
+- All 12 cases PASS, including CASE 04 floating-return-kinds (Currency returns 1234.5678), CASE 09 single raise, 1000 sequential unwinds, concurrent stress, post-stress integrity. Process exit 0.
+- The probe prints "PRISTINE ISSUE A/B NOT REPRODUCED ... NOT CONFIRMED" and exits 1 — that's the script doing its job (it was written to confirm the bugs); here "not reproduced" is exactly the desired verdict.
+
+Structural confirmation, not just survival. The final FPC-linked executable now has an exact RUNTIME_FUNCTION for CallMethod (RVA 0x52780..0x5280D), and dumpbin decodes its unwind info as: version 1, frame register RBP via SET_FPREG, PUSH_NONVOL r12, PUSH_NONVOL rbp — the same unwind description our MASM replacement produced. So the metadata is genuinely there and correct in the linked PE; the gap that killed the unwinder is closed.
+
+
 ## Summary
 
 On FPC 3.2.2 Win64, an ordinary Pascal exception raised inside a mORMot 2
