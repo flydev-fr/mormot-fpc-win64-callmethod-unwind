@@ -1,5 +1,5 @@
 diff --git a/src/core/mormot.core.interfaces.pas b/src/core/mormot.core.interfaces.pas
-index 5a86867..4e559ea 100644
+index b456cc4..f042685 100644
 --- a/src/core/mormot.core.interfaces.pas
 +++ b/src/core/mormot.core.interfaces.pas
 @@ -7096,10 +7096,9 @@ load_regs:
@@ -32,8 +32,9 @@ index 5a86867..4e559ea 100644
  @d:     movlpd  qword ptr [r12].TCallMethodArgs.res64, xmm0
          // movlpd to ignore upper 64-bit of 128-bit xmm0 reg
  @e:     {$ifdef FPC}
+
 diff --git a/src/lib/mormot.lib.quickjs.pas b/src/lib/mormot.lib.quickjs.pas
-index c4e749d..7ca0e62 100644
+index 2ee23da..f1df810 100644
 --- a/src/lib/mormot.lib.quickjs.pas
 +++ b/src/lib/mormot.lib.quickjs.pas
 @@ -947,7 +947,7 @@ procedure JS_SetMemoryLimit(rt: JSRuntime; limit: PtrUInt);
@@ -119,7 +120,7 @@ index c4e749d..7ca0e62 100644
  end;
  
 diff --git a/src/lib/mormot.lib.static.pas b/src/lib/mormot.lib.static.pas
-index 73150d9..ef6cc05 100644
+index 75cdf4b..2b7eb4a 100644
 --- a/src/lib/mormot.lib.static.pas
 +++ b/src/lib/mormot.lib.static.pas
 @@ -254,16 +254,28 @@ implementation

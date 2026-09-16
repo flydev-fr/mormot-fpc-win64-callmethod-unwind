@@ -1,3 +1,0 @@
-# This patch contains CRLF context from the exact upstream mORMot2 blobs.
-# Keep its bytes stable on every runner so git apply validates the pin.
-patches/mormot2-2026-09-16-abi-fixes.patch -text

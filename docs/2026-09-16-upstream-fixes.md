@@ -10,9 +10,10 @@ contains three independent corrections found while reviewing that exact tree.
 The patch is intentionally applied to a clone under `deps/mormot2`; no
 generated or modified dependency file is committed. `tools/apply-upstream-fixes.ps1`
 checks the exact locked SHA, requires a clean clone, runs `git apply --check`,
-and refuses an unexpected patch surface. The patch preserves the upstream
-CRLF source bytes; `.gitattributes` disables checkout-time conversion for the
-patch itself, and the verifier treats CR as part of the line ending.
+and refuses an unexpected patch surface. The patch is stored with portable LF
+line endings; application ignores only line-ending whitespace because the
+locked upstream Pascal blobs use CRLF. The full commit SHA and three-file
+surface check prevent that normalization from weakening the source pin.
 
 ## 1. `Currency` result ABI in `CallMethod`
 

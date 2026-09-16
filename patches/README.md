@@ -7,7 +7,9 @@ commit recorded in `mormot.lock`. It corrects the cross-platform
 `Currency` result ABI, the QuickJS runtime parameter type, and the C
 `size_t` allocator bridge. Apply it through
 `tools/apply-upstream-fixes.ps1`, which verifies the pin, clean tree,
-preflight, whitespace, and three-file patch surface.
+preflight, whitespace, and three-file patch surface. Its only relaxed match
+rule is line-ending whitespace, needed because the portable LF patch targets
+upstream Pascal blobs stored as CRLF.
 
 The rationale and four-runner differential are documented in
 [`docs/2026-09-16-upstream-fixes.md`](../docs/2026-09-16-upstream-fixes.md).

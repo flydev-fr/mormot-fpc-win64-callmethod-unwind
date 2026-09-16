@@ -36,7 +36,8 @@ if ($LASTEXITCODE -ne 0) { Fail 'unable to inspect dependency status' }
 if ($dirty.Count -ne 0) {
     # An already-applied exact patch is accepted; every other dirty state is
     # rejected so this helper never layers changes onto unknown source.
-    git -C $Checkout apply --reverse --check --whitespace=error-all $Patch
+    git -C $Checkout apply --reverse --check --ignore-space-change `
+        --whitespace=error-all $Patch
     if ($LASTEXITCODE -eq 0) {
         Write-Host '[apply-upstream-fixes] exact patch is already applied'
         exit 0
@@ -44,20 +45,18 @@ if ($dirty.Count -ne 0) {
     Fail ('dependency has unrelated changes: ' + ($dirty -join '; '))
 }
 
-git -C $Checkout apply --check --whitespace=error-all $Patch
+git -C $Checkout apply --check --ignore-space-change `
+    --whitespace=error-all $Patch
 if ($LASTEXITCODE -ne 0) { Fail 'patch preflight failed against the pinned tree' }
 if ($CheckOnly) {
     Write-Host '[apply-upstream-fixes] patch preflight PASS'
     exit 0
 }
 
-git -C $Checkout apply --whitespace=error-all $Patch
+git -C $Checkout apply --ignore-space-change --whitespace=error-all $Patch
 if ($LASTEXITCODE -ne 0) { Fail 'git apply failed' }
 
-# The exact upstream Pascal blobs use CRLF. Tell Git that CR is part of the
-# line ending, not trailing whitespace, while keeping every other whitespace
-# check enabled.
-git -c core.whitespace=cr-at-eol -C $Checkout diff --check
+git -C $Checkout diff --check
 if ($LASTEXITCODE -ne 0) { Fail 'patched tree contains whitespace errors' }
 
 $expected = @(
