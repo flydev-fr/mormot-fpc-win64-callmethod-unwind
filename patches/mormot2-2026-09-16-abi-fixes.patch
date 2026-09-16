@@ -1,0 +1,191 @@
+diff --git a/src/core/mormot.core.interfaces.pas b/src/core/mormot.core.interfaces.pas
+index 5a86867..4e559ea 100644
+--- a/src/core/mormot.core.interfaces.pas
++++ b/src/core/mormot.core.interfaces.pas
+@@ -7096,10 +7096,9 @@ load_regs:
+    cmp  x15, imvDouble
+    b.eq float_result
+    cmp  x15, imvDateTime
+-   b.eq float_result
+-   cmp  x15, imvCurrency
+    b.ne asmcall_end
+-   // store double result in res64
++   // AArch64 returns Currency as its scaled Int64 value in x0
++   // store only floating-point results from d0
+ float_result:
+    str  d0, [x19, #TCallMethodArgs.res64]
+ asmcall_end:
+@@ -7196,8 +7195,15 @@ asm
+         mov     cl, [r12].TCallMethodArgs.resKind
+         cmp     cl, imvDouble
+         je      @d
+-        cmp     cl, imvDateTime // but imvCurrency is returned in rax
++        cmp     cl, imvDateTime
++        je      @d
++        {$if defined(FPC) and defined(OSPOSIX)}
++        // FPC SysV x64 returns Currency through x87 ST0, unlike Win64/RAX
++        cmp     cl, imvCurrency
+         jne     @e
++        fistp   qword [r12].TCallMethodArgs.res64
++        {$endif}
++        jmp     @e
+ @d:     movlpd  qword ptr [r12].TCallMethodArgs.res64, xmm0
+         // movlpd to ignore upper 64-bit of 128-bit xmm0 reg
+ @e:     {$ifdef FPC}
+diff --git a/src/lib/mormot.lib.quickjs.pas b/src/lib/mormot.lib.quickjs.pas
+index c4e749d..7ca0e62 100644
+--- a/src/lib/mormot.lib.quickjs.pas
++++ b/src/lib/mormot.lib.quickjs.pas
+@@ -947,7 +947,7 @@ procedure JS_SetMemoryLimit(rt: JSRuntime; limit: PtrUInt);
+ procedure JS_SetGCThreshold(rt: JSRuntime; gc_threshold: PtrUInt);
+   cdecl; external {$ifdef QJSDLL}QJ{$endif};
+ 
+-procedure JS_SetMaxStackSize(ctx: JSContext; stack_size: PtrUInt);
++procedure JS_SetMaxStackSize(rt: JSRuntime; stack_size: PtrUInt);
+   cdecl; external {$ifdef QJSDLL}QJ{$endif};
+ 
+ function JS_NewRuntime2(const mf: PJSMallocFunctions;
+@@ -1765,27 +1765,32 @@ uses
+ // note: Delphi expects the dependencies to be in the very same unit
+ //  -> we either implement them here, or asm jmp to mormot.lib.static code
+ 
+-function pas_malloc(size: cardinal): pointer; cdecl;
++function pas_malloc(size: PtrUInt): pointer; cdecl;
+ begin
+   if size = 0 then
+   begin
+     result := nil;
+     exit;
+   end;
+-  GetMem(result, size + 4);
+-  PInteger(result)^ := size; // put size as trailer for pas_malloc_usable_size()
+-  inc(PInteger(result));
++  if size > PtrUInt(High(PtrInt)) - SizeOf(PtrUInt) then
++  begin
++    result := nil;
++    exit;
++  end;
++  GetMem(result, PtrInt(size + SizeOf(PtrUInt)));
++  PPtrUInt(result)^ := size; // header read by pas_malloc_usable_size()
++  inc(PPtrUInt(result));
+ end;
+ 
+ procedure pas_free(P: pointer); cdecl;
+ begin
+   if P = nil then
+     exit;
+-  dec(PInteger(P));
++  dec(PPtrUInt(P));
+   FreeMem(P);
+ end;
+ 
+-function pas_realloc(P: pointer; Size: integer): pointer; cdecl;
++function pas_realloc(P: pointer; Size: PtrUInt): pointer; cdecl;
+ begin
+   if (P = nil) or
+      (Size = 0) then
+@@ -1794,21 +1799,26 @@ begin
+     result := nil;
+     exit;
+   end;
+-  dec(PInteger(P));
+-  ReallocMem(P, Size + 4);
++  if Size > PtrUInt(High(PtrInt)) - SizeOf(PtrUInt) then
++  begin
++    result := nil;
++    exit;
++  end;
++  dec(PPtrUInt(P));
++  ReallocMem(P, PtrInt(Size + SizeOf(PtrUInt)));
+   result := P;
+-  PInteger(result)^ := size;
+-  inc(PInteger(result));
++  PPtrUInt(result)^ := Size;
++  inc(PPtrUInt(result));
+ end;
+ 
+-function pas_malloc_usable_size(P: pointer): integer; cdecl;
++function pas_malloc_usable_size(P: pointer): PtrUInt; cdecl;
+ begin
+   if P = nil then
+     result := 0
+   else
+   begin
+-    dec(PInteger(P));
+-    result := PInteger(P)^;
++    dec(PPtrUInt(P));
++    result := PPtrUInt(P)^;
+   end;
+ end;
+ 
+diff --git a/src/lib/mormot.lib.static.pas b/src/lib/mormot.lib.static.pas
+index 73150d9..ef6cc05 100644
+--- a/src/lib/mormot.lib.static.pas
++++ b/src/lib/mormot.lib.static.pas
+@@ -254,16 +254,28 @@ implementation
+ // QuickJS and lizard source e.g. was patched to call those heap functions
+ // warning: we can't replace malloc/free/realloc and link libc/libpthread/libdl
+ 
+-function pas_malloc(size: cardinal): pointer; cdecl;
++// C size_t maps to PtrUInt on every supported ABI
++function pas_malloc(size: PtrUInt): pointer; cdecl;
+  {$ifdef FPC} public name _PREFIX + 'pas_malloc'; {$endif}
+ begin
+-  GetMem(result, size);
++  if size > PtrUInt(High(PtrInt)) then
++    result := nil
++  else
++    GetMem(result, PtrInt(size));
+ end;
+ 
+-function pas_calloc(n, size: PtrInt): pointer; cdecl;
++function pas_calloc(n, size: PtrUInt): pointer; cdecl;
+  {$ifdef FPC} public name _PREFIX + 'pas_calloc'; {$endif}
++var
++  bytes: PtrUInt;
+ begin
+-  result := AllocMem(size * n);
++  if (n <> 0) and (size > PtrUInt(High(PtrInt)) div n) then
++  begin
++    result := nil;
++    exit;
++  end;
++  bytes := n * size;
++  result := AllocMem(PtrInt(bytes));
+ end;
+ 
+ procedure pas_free(P: pointer); cdecl;
+@@ -272,18 +284,28 @@ begin
+   FreeMem(P);
+ end;
+ 
+-function pas_realloc(P: pointer; Size: PtrInt): pointer; cdecl;
++function pas_realloc(P: pointer; Size: PtrUInt): pointer; cdecl;
+  {$ifdef FPC} public name _PREFIX + 'pas_realloc'; {$endif}
+ begin
+-  ReallocMem(P, Size);
+-  result := P;
++  if Size > PtrUInt(High(PtrInt)) then
++    result := nil
++  else
++  begin
++    ReallocMem(P, PtrInt(Size));
++    result := P;
++  end;
+ end;
+ 
+-function pas_malloc_usable_size(P: pointer): integer; cdecl;
++function pas_malloc_usable_size(P: pointer): PtrUInt; cdecl;
+  {$ifdef FPC} public name _PREFIX + 'pas_malloc_usable_size'; {$endif}
+ begin
++  if P = nil then
++  begin
++    result := 0;
++    exit;
++  end;
+   {$ifdef FPC}
+-  result := MemSize(P); // only available on FPC
++  result := PtrUInt(MemSize(P)); // only available on FPC
+   {$else}
+   result := 0; // will reallocate each time - good enough with Delphi's FastMM4
+   {$endif FPC}
