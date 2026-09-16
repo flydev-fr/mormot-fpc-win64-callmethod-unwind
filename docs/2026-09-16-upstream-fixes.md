@@ -96,7 +96,7 @@ merge.
 
 ## Reproduce locally
 
-PowerShell 7, Git, FPC 3.2.2, and the platform linker are required.
+PowerShell 7, Git, FPC 3.2.3, and the platform linker are required.
 
 ```powershell
 pwsh tools/get-mormot.ps1
@@ -113,6 +113,11 @@ The GitHub Actions workflow runs that exact sequence on:
 - `macos-15-intel` / x86-64;
 - `macos-15` / ARM64.
 
+The test compiler is built from the official FPC `fixes_3_2` source at
+commit `483299735faef392a746646bb3d5f5737a9e53a5`, which identifies itself as
+FPC 3.2.3. FPC 3.2.2 is used only to bootstrap that pinned compiler; no
+mORMot2 source or test is compiled with the bootstrap toolchain.
+
 After the targeted patched checks pass, every runner also compiles and runs
 the official upstream `test/mormot2tests.dpr` Core/ORM/SOA regression suite
 against the patched checkout. CI defines `NO_UI` because no desktop widgetset
@@ -120,5 +125,5 @@ is installed and passes `nontp` to disable the sole public-network probe; all
 other official tests execute normally and must emit the upstream success
 marker with a zero exit status.
 
-The macOS compiler installer and mORMot static archive are checksum-pinned;
-the mORMot source is fetched by full commit SHA.
+The bootstrap installers and mORMot static archive are checksum-pinned; both
+the FPC and mORMot source trees are fetched by full commit SHA.

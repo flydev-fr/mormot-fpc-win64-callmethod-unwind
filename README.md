@@ -230,7 +230,10 @@ x64, Linux x64, macOS x64, and macOS ARM64. The pristine phase must expose
 the target-specific defects, while the patched phase must pass all five
 interface-service Currency cases plus the QuickJS and allocator gates. Each
 patched runner then compiles and executes the complete official
-`test/mormot2tests.dpr` Core/ORM/SOA regression suite.
+`test/mormot2tests.dpr` Core/ORM/SOA regression suite. All verification uses
+FPC 3.2.3 built from the pinned official `fixes_3_2` commit
+`483299735faef392a746646bb3d5f5737a9e53a5`; FPC 3.2.2 is only the bootstrap
+compiler used to build that toolchain.
 
 ## Historical test commands (original reproduction pin)
 
@@ -299,6 +302,7 @@ test/quickjs_signature_test.pas compile-time JSRuntime signature gate
 test/static_allocator_compile_test.pas  C size_t / Pascal width gate
 tools/get-mormot.ps1            deterministic pinned fetch into deps/mormot2
 tools/apply-upstream-fixes.ps1  exact-pin transactional patch application
+tools/install-fpc-3.2.3.ps1     pinned native FPC 3.2.3 toolchain build
 tools/run-upstream-tests.ps1    pristine-versus-patched cross-platform suite
 tools/run-mormot2-tests.ps1     full official post-patch mORMot2 test suite
 tools/prepare.ps1               transactional install of the replacement

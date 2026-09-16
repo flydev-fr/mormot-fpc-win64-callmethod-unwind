@@ -25,16 +25,15 @@ function Resolve-Fpc([string]$ExplicitPath) {
             if ($null -ne $command) { $candidates += $command.Source }
         }
         $candidates += @(
-            'C:\lazarus\fpc\3.2.2\bin\x86_64-win64\fpc.exe',
-            'C:\fpc\3.2.2\bin\x86_64-win64\fpc.exe'
+            'C:\fpc\3.2.3\bin\x86_64-win64\fpc.exe'
         )
     }
     foreach ($candidate in $candidates | Select-Object -Unique) {
         if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
         $version = (& $candidate -iV 2>$null | Select-Object -First 1)
-        if ("$version".Trim() -eq '3.2.2') { return $candidate }
+        if ("$version".Trim() -eq '3.2.3') { return $candidate }
     }
-    Fail 'FPC 3.2.2 was not found'
+    Fail 'FPC 3.2.3 was not found'
 }
 
 if (-not (Test-Path -LiteralPath (Join-Path $Checkout '.git'))) {
@@ -123,11 +122,14 @@ if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
 
 # Keep the official suite deterministic in CI: all regular Core/ORM/SOA tests
 # run, while the only public-network probe (NTP) is disabled.
-$runArgs = if ($TargetOs -eq 'win64') {
-    @('/noenter', '/nontp')
+$runArgs = @()
+if ($TargetOs -eq 'win64') {
+    $runArgs += @('/noenter', '/nontp')
 }
 else {
-    @('--nontp')
+    # Keep this as an actual one-element array. PowerShell otherwise unwraps
+    # the single string returned by an if-expression and splats its characters.
+    $runArgs += '--nontp'
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $BinDir 'data') | Out-Null
 Write-Host "[mormot2-regression] running $exe $($runArgs -join ' ')"

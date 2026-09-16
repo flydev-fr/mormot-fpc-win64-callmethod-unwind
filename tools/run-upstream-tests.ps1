@@ -35,16 +35,15 @@ function Resolve-Fpc([string]$ExplicitPath) {
             if ($null -ne $command) { $candidates += $command.Source }
         }
         $candidates += @(
-            'C:\lazarus\fpc\3.2.2\bin\x86_64-win64\fpc.exe',
-            'C:\fpc\3.2.2\bin\x86_64-win64\fpc.exe'
+            'C:\fpc\3.2.3\bin\x86_64-win64\fpc.exe'
         )
     }
     foreach ($candidate in $candidates | Select-Object -Unique) {
         if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
         $version = (& $candidate -iV 2>$null | Select-Object -First 1)
-        if ("$version".Trim() -eq '3.2.2') { return $candidate }
+        if ("$version".Trim() -eq '3.2.3') { return $candidate }
     }
-    Fail 'FPC 3.2.2 was not found'
+    Fail 'FPC 3.2.3 was not found'
 }
 
 function Read-Source([string]$RelativePath) {
