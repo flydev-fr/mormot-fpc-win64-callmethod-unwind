@@ -98,8 +98,20 @@ $args += @(
 )
 
 Write-Host "[mormot2-regression] compiling official test/mormot2tests.dpr"
-$compileLines = @(& $Fpc @args 2>&1 | ForEach-Object { "$_" })
-$compileCode = $LASTEXITCODE
+$compileLines = @()
+$compileCode = -1
+# mormot2tests.dpr contains explicit relative `in '..\src\...'` and
+# `in '.\test.*.pas'` clauses. FPC resolves those paths from its working
+# directory, so compile from the upstream test directory just like the
+# official build script is intended to be invoked.
+Push-Location (Join-Path $Checkout 'test')
+try {
+    $compileLines = @(& $Fpc @args 2>&1 | ForEach-Object { "$_" })
+    $compileCode = $LASTEXITCODE
+}
+finally {
+    Pop-Location
+}
 $compileLines | ForEach-Object { Write-Host $_ }
 $compileLines | Set-Content -LiteralPath (Join-Path $BuildRoot "$Target-compile.log")
 if ($compileCode -ne 0) {
