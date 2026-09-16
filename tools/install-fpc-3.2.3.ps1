@@ -116,10 +116,22 @@ if ($ActualCommit -cne $SourceCommit) {
 
 $MakeDestination = $Destination -replace '\\', '/'
 $MakePp = $Pp -replace '\\', '/'
+$BuildOptions = '-O2'
+$SdkRoot = $null
+if ($TargetOs -eq 'darwin') {
+    $SdkRoot = "$( & xcrun --sdk macosx --show-sdk-path )".Trim()
+    if (($LASTEXITCODE -ne 0) -or
+        (-not (Test-Path -LiteralPath $SdkRoot -PathType Container))) {
+        Fail 'the active macOS SDK could not be resolved with xcrun'
+    }
+    # Recent Xcode installations expose libc only inside the SDK. Propagate
+    # the sysroot through every compiler cycle and retain it in fpc.cfg.
+    $BuildOptions = "-O2 -XR$SdkRoot"
+}
 Push-Location $Source
 try {
     Invoke-Checked "building native FPC 3.2.3 for $Target" {
-        & $Make '-j2' "PP=$MakePp" 'OPT=-O2' all
+        & $Make '-j2' "PP=$MakePp" "OPT=$BuildOptions" all
     }
     Invoke-Checked "installing FPC 3.2.3 into $Destination" {
         & $Make "PP=$MakePp" "INSTALL_PREFIX=$MakeDestination" install
@@ -153,6 +165,7 @@ $LibraryDirs = Get-ChildItem -LiteralPath $Destination -Recurse -File |
     Where-Object { $_.Extension -in @('.a', '.o') } |
     ForEach-Object { $_.DirectoryName } | Sort-Object -Unique
 $ConfigLines = @('# generated for the pinned FPC 3.2.3 CI toolchain')
+if ($SdkRoot) { $ConfigLines += "-XR$SdkRoot" }
 $ConfigLines += $UnitDirs | ForEach-Object { "-Fu$_" }
 $ConfigLines += $LibraryDirs | ForEach-Object { "-Fl$_" }
 $ConfigLines | Set-Content -LiteralPath $ConfigPath -Encoding ascii

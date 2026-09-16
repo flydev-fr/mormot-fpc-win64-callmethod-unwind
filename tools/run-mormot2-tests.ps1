@@ -7,7 +7,16 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Checkout = Join-Path $RepoRoot 'deps/mormot2'
-$BuildRoot = Join-Path $RepoRoot 'build/mormot2-regression'
+$BuildRoot = if ([IO.Path]::DirectorySeparatorChar -eq '/') {
+    # Several official network tests derive a Unix-domain socket name from
+    # ProgramFilePath. GitHub's checkout path exceeds sockaddr_un.sun_path on
+    # Linux, so use a deterministic short execution path without skipping the
+    # socket tests.
+    '/tmp/mormot2-regression'
+}
+else {
+    Join-Path $RepoRoot 'build/mormot2-regression'
+}
 
 function Fail([string]$Message) {
     throw "[mormot2-regression] $Message"
