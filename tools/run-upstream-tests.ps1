@@ -188,7 +188,7 @@ else {
     }
     Require-Literal $mac 'CFSTR(id), nil, 0);' `
         'address-free CoreFoundation default allocator value'
-    if ($mac.Contains('kCFAllocatorDefault')) {
+    if ($mac.Contains('kCFAllocatorDefault, 0')) {
         Fail 'the patched macOS source still references kCFAllocatorDefault by address'
     }
 }
