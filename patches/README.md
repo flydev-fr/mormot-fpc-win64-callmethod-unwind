@@ -5,7 +5,7 @@
 `mormot2-2026-09-16-abi-fixes.patch` applies directly to the exact mORMot2
 commit recorded in `mormot.lock`. It corrects the cross-platform
 `Currency` result ABI, the QuickJS runtime parameter type, the C `size_t`
-allocator bridge, and the macOS IOKit default-port constant. Apply it through
+allocator bridge, and the macOS IOKit/CoreFoundation default constants. Apply it through
 `tools/apply-upstream-fixes.ps1`, which verifies the pin, clean tree,
 preflight, whitespace, and four-file patch surface. Its only relaxed match
 rule is line-ending whitespace, needed because the portable LF patch targets

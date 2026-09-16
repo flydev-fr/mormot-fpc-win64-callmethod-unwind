@@ -142,6 +142,9 @@ if ($Mode -eq 'Pristine') {
     Require-Literal $mac `
         'kIOMasterPortDefault: mach_port_t; cvar; external;' `
         'the pinned address-based IOKit constant import'
+    Require-Literal $mac `
+        'CFSTR(id), kCFAllocatorDefault, 0);' `
+        'the pinned address-based CoreFoundation allocator import'
     if ($core.Contains('FPC SysV x64 returns Currency through x87 ST0')) {
         Fail 'the pristine source unexpectedly contains the proposed x87 fix'
     }
@@ -182,6 +185,11 @@ else {
         'address-free IOKit default port constant'
     if ($mac.Contains('kIOMasterPortDefault: mach_port_t; cvar; external;')) {
         Fail 'the patched macOS source still imports kIOMasterPortDefault as a cvar'
+    }
+    Require-Literal $mac 'CFSTR(id), nil, 0);' `
+        'address-free CoreFoundation default allocator value'
+    if ($mac.Contains('kCFAllocatorDefault')) {
+        Fail 'the patched macOS source still references kCFAllocatorDefault by address'
     }
 }
 

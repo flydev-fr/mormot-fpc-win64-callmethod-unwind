@@ -11,7 +11,7 @@ and carries a reviewable patch for four remaining ABI/binding issues:
 * FPC SysV x86-64 and AArch64 `Currency` results in `CallMethod`;
 * the QuickJS `JS_SetMaxStackSize(JSRuntime *)` Pascal declaration;
 * C `size_t` versus Pascal allocator widths;
-* the macOS `kIOMasterPortDefault` absolute IOKit constant.
+* macOS absolute IOKit/CoreFoundation default constants.
 
 See [the 2026-09-16 fix rationale and test matrix](docs/2026-09-16-upstream-fixes.md).
 The workflow clones the locked mORMot tree, confirms the defects on pristine

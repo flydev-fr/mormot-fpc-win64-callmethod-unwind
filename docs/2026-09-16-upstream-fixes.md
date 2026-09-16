@@ -96,7 +96,7 @@ headers, checks the overflow guards, and force-compiles
 matrix; it should additionally be compiled by upstream's Delphi CI before
 merge.
 
-## 4. macOS IOKit default-port linkage
+## 4. macOS absolute default-constant linkage
 
 `mormot.core.os.mac.pas` declared `kIOMasterPortDefault` as an external
 `cvar`. [Apple's IOKit implementation](https://github.com/apple-oss-distributions/IOKitUser/blob/323ead896d04424f87184d8f6ff0cce811aab106/IOKitLib.c#L112-L113)
@@ -108,9 +108,15 @@ fails with `target '_kIOMasterPortDefault' does not have address`.
 
 The patch maps the value to a typed Pascal constant equal to zero. This keeps
 the IOKit call semantics unchanged and removes the invalid relocation. The
-pristine differential recognizes that exact linker diagnostic on Darwin;
-the patched targeted program and the complete mORMot2 suite must then link
-and run on both macOS x86-64 and ARM64.
+same unit passed `kCFAllocatorDefault` to three CoreFoundation calls. Apple's
+[CoreFoundation implementation](https://github.com/apple-oss-distributions/CF/blob/dc54c6bb1c1e5e0b9486c1d26dd5bef110b20bf3/CFBase.c#L388)
+defines that symbol as `NULL`, but importing its address triggers the same
+Mach-O x86-64 fixup error. The patch therefore passes `nil` directly at those
+call sites.
+
+The pristine differential source-gates both address-based forms; the patched
+targeted program and the complete mORMot2 suite must then link and run on both
+macOS x86-64 and ARM64.
 
 ## Reproduce locally
 

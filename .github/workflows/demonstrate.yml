@@ -207,6 +207,6 @@ jobs:
           - Runtime: five interface-service ``Currency`` return shapes
           - Compile-time: QuickJS ``JSRuntime`` signature
           - Source/compile gate: C ``size_t`` ↔ Pascal ``PtrUInt`` allocators
-          - Darwin link gate: address-free ``kIOMasterPortDefault`` constant
+          - Darwin link gate: address-free IOKit/CoreFoundation default constants
           - Upstream coverage: full official ``test/mormot2tests.dpr`` suite with checksum-pinned reference data
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY

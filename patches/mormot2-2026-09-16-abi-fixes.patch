@@ -34,7 +34,7 @@ index b456cc4..f042685 100644
  @e:     {$ifdef FPC}
 
 diff --git a/src/core/mormot.core.os.mac.pas b/src/core/mormot.core.os.mac.pas
-index 6732fd3..218fa54 100644
+index 6732fd3..5b1f866 100644
 --- a/src/core/mormot.core.os.mac.pas
 +++ b/src/core/mormot.core.os.mac.pas
 @@ -53,8 +53,11 @@ type
@@ -51,6 +51,36 @@ index 6732fd3..218fa54 100644
   
  function IORegistryEntryFromPath(
    masterPort: mach_port_t; const path: io_string_t): io_registry_entry_t; cdecl; external;
+@@ -85,7 +88,8 @@ begin
+     root := IORegistryEntryFromPath(kIOMasterPortDefault, 'IOService:/');
+     if root = 0 then
+       exit;
+-    ref := IORegistryEntryCreateCFProperty(root, CFSTR(id), kCFAllocatorDefault, 0);
++    // kCFAllocatorDefault is a NULL absolute symbol: pass its value directly
++    ref := IORegistryEntryCreateCFProperty(root, CFSTR(id), nil, 0);
+     IOObjectRelease(root);
+     if ref = nil then
+       exit;
+@@ -151,8 +155,8 @@ begin
+       'IOService:/AppleACPIPlatformExpert/bios/AppleSMBIOS');
+     if root <> 0 then
+     begin
+-      ref := IORegistryEntryCreateCFProperty(
+-        root, CFSTR('SMBIOS'), kCFAllocatorDefault, 0);
++      ref := IORegistryEntryCreateCFProperty(
++        root, CFSTR('SMBIOS'), nil, 0);
+       IOObjectRelease(root);
+       if (ref <> nil) and
+          (CFGetTypeID(ref) = CFDataGetTypeID) then
+@@ -172,7 +176,7 @@ begin
+     if serv = 0 then
+       exit;
+     prop := nil;
+-    IORegistryEntryCreateCFProperties(serv, prop, kCFAllocatorDefault, 0);
++    IORegistryEntryCreateCFProperties(serv, prop, nil, 0);
+     IOObjectRelease(serv);
+     if prop = nil then
+       exit;
 
 diff --git a/src/lib/mormot.lib.quickjs.pas b/src/lib/mormot.lib.quickjs.pas
 index 2ee23da..f1df810 100644
