@@ -65,8 +65,10 @@ parameter to `JSRuntime`; `stack_size` was already correctly mapped to
 `test/quickjs_signature_test.pas` passes a `JSRuntime`. Compilation is
 expected to fail on the pristine declaration with the distinct
 `JSRuntime`/`JSContext` pointer types, then pass after the patch. The test is
-compiled with `-Cn`, so it verifies the declaration on every runner without
-requiring a QuickJS runtime for that host.
+compiled with `-Cn` on Windows and Linux, so it verifies the declaration
+without linking a QuickJS runtime. On Darwin, where `mormot.lib.quickjs`
+intentionally exposes no public binding symbols, the runner checks the exact
+declaration text instead.
 
 ## 3. C `size_t` allocator bridge
 

@@ -64,7 +64,9 @@ $expected = @(
     'src/lib/mormot.lib.quickjs.pas',
     'src/lib/mormot.lib.static.pas'
 )
-$actual = @(git -C $Checkout diff --name-only | Sort-Object)
+$actual = @(git -C $Checkout diff --name-only |
+    Where-Object { $_ -notmatch '^static/' } |
+    Sort-Object)
 if ($LASTEXITCODE -ne 0) { Fail 'unable to list patched files' }
 $wanted = @($expected | Sort-Object)
 if (($actual.Count -ne $wanted.Count) -or

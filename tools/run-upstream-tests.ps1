@@ -178,20 +178,29 @@ else {
 
 Push-Location $RepoRoot
 try {
-    $quickCompile = Invoke-Compile 'quickjs-signature' `
-        'test/quickjs_signature_test.pas' -NoLink
-    if ($Mode -eq 'Pristine') {
-        if ($quickCompile.Code -eq 0) {
-            Fail 'QuickJS mismatch was expected to fail compilation on pristine source'
-        }
-        if (($quickCompile.Text -notmatch 'JSRuntime') -or
-            ($quickCompile.Text -notmatch 'JSContext')) {
-            Fail "QuickJS compile failed for an unrelated reason; see $($quickCompile.Log)"
-        }
-        Write-Host '[upstream-tests/Pristine] QuickJS type mismatch CONFIRMED'
+    # mormot.lib.quickjs intentionally compiles as a void unit on Darwin, so
+    # its public symbols cannot be type-checked there. The source assertions
+    # above still gate the exact declaration on macOS; Windows and Linux run
+    # the real compiler-level negative/positive differential.
+    if ($TargetOs -eq 'darwin') {
+        Write-Host "[upstream-tests/$Mode] QuickJS signature source gate PASS on Darwin"
     }
-    elseif ($quickCompile.Code -ne 0) {
-        Fail "corrected QuickJS declaration did not compile; see $($quickCompile.Log)"
+    else {
+        $quickCompile = Invoke-Compile 'quickjs-signature' `
+            'test/quickjs_signature_test.pas' -NoLink
+        if ($Mode -eq 'Pristine') {
+            if ($quickCompile.Code -eq 0) {
+                Fail 'QuickJS mismatch was expected to fail compilation on pristine source'
+            }
+            if (($quickCompile.Text -notmatch 'JSRuntime') -or
+                ($quickCompile.Text -notmatch 'JSContext')) {
+                Fail "QuickJS compile failed for an unrelated reason; see $($quickCompile.Log)"
+            }
+            Write-Host '[upstream-tests/Pristine] QuickJS type mismatch CONFIRMED'
+        }
+        elseif ($quickCompile.Code -ne 0) {
+            Fail "corrected QuickJS declaration did not compile; see $($quickCompile.Log)"
+        }
     }
 
     if ($Mode -eq 'Patched') {
