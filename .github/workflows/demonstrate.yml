@@ -176,6 +176,17 @@ jobs:
           pwsh -NoProfile -File tools/run-upstream-tests.ps1 -Mode Patched
           if ($LASTEXITCODE -ne 0) { throw 'patched regression suite failed' }
 
+      - name: Normalize macOS test hostname
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # test.core.base bounds two syslog messages at 400 bytes. Hosted
+          # ARM64 runner hostnames can exceed 80 characters, so use a stable
+          # short host without changing any mORMot source or test selection.
+          sudo hostname mormot-ci
+          hostname
+
       - name: Compile and run full mORMot2 regression suite
         shell: pwsh
         run: |
@@ -196,5 +207,6 @@ jobs:
           - Runtime: five interface-service ``Currency`` return shapes
           - Compile-time: QuickJS ``JSRuntime`` signature
           - Source/compile gate: C ``size_t`` ↔ Pascal ``PtrUInt`` allocators
-          - Upstream coverage: full official ``test/mormot2tests.dpr`` suite
+          - Darwin link gate: address-free ``kIOMasterPortDefault`` constant
+          - Upstream coverage: full official ``test/mormot2tests.dpr`` suite with checksum-pinned reference data
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY

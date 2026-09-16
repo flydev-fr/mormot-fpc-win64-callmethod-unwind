@@ -6,16 +6,19 @@ The original Win64 unwind and Currency defects documented below are fixed
 upstream. This repository now also pins the exact 2026-09-16 mORMot2 Daily
 landing point, build 2.4.16897 at
 [`102fa3d99708d839948eef595d1d02d2e8fdbb45`](https://github.com/synopse/mORMot2/commit/102fa3d99708d839948eef595d1d02d2e8fdbb45),
-and carries a reviewable patch for three remaining ABI/binding issues:
+and carries a reviewable patch for four remaining ABI/binding issues:
 
 * FPC SysV x86-64 and AArch64 `Currency` results in `CallMethod`;
 * the QuickJS `JS_SetMaxStackSize(JSRuntime *)` Pascal declaration;
-* C `size_t` versus Pascal allocator widths.
+* C `size_t` versus Pascal allocator widths;
+* the macOS `kIOMasterPortDefault` absolute IOKit constant.
 
 See [the 2026-09-16 fix rationale and test matrix](docs/2026-09-16-upstream-fixes.md).
 The workflow clones the locked mORMot tree, confirms the defects on pristine
 source, applies the patch transactionally, and requires the corrected tests
-on Windows x64, Linux x64, macOS x64, and macOS ARM64.
+on Windows x64, Linux x64, macOS x64, and macOS ARM64. It then runs the full
+official mORMot2 suite with checksum-pinned process fixtures; macOS resolves
+Homebrew OpenSSL explicitly so its HTTPS tests run as well.
 
 The remainder of this README is the historical Win64 unwind reproducer and
 its upstream-resolution record.
@@ -295,7 +298,7 @@ dist/README.md                  the packaged object: provenance, integration
 tools/make-dist.ps1             package dist/x64callmethod.o (not committed)
 
 patches/README.md               exact shape of the generated source change
-patches/mormot2-2026-09-16-abi-fixes.patch  current three-file proposal
+patches/mormot2-2026-09-16-abi-fixes.patch  current four-file proposal
 test/callmethod_unwind_test.pas 12-case ABI/exception suite over TRestServer.Uri()
 test/currency_return_test.pas   five real service calls across target ABIs
 test/quickjs_signature_test.pas compile-time JSRuntime signature gate

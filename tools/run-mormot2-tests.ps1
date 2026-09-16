@@ -45,6 +45,45 @@ function Resolve-Fpc([string]$ExplicitPath) {
     Fail 'FPC 3.2.3 was not found'
 }
 
+function Install-ProcessReferenceData([string]$Destination) {
+    # The official suite normally fetches this mutable URL from inside the
+    # test process. Preloading the exact archive keeps Core process tests
+    # deterministic and still runs every assertion when runner egress differs.
+    $uri = 'https://synopse.info/files/process-ref.zip'
+    $expected = '0ed513dd4dcf1a549387ae4c8cc6222456a4de149f1c928a12f6d6086c214873'
+    $archive = Join-Path $BuildRoot 'process-ref.zip'
+    Write-Host "[mormot2-regression] downloading checksum-pinned process references"
+    Invoke-WebRequest -Uri $uri -OutFile $archive -MaximumRetryCount 3 `
+        -RetryIntervalSec 2
+    $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -cne $expected) {
+        Fail "process-ref.zip digest mismatch: $actual"
+    }
+    Expand-Archive -LiteralPath $archive -DestinationPath $Destination -Force
+    foreach ($name in @(
+            'zendframework.json', 'discogs.json', 'interpolation.json',
+            'comments.json', 'sections.json', 'inverted.json', 'partials.json')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $Destination $name) -PathType Leaf)) {
+            Fail "process reference is missing after extraction: $name"
+        }
+    }
+}
+
+function Resolve-OpenSslPath {
+    $brew = Get-Command brew -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($null -eq $brew) { Fail 'Homebrew is required to locate OpenSSL on Darwin' }
+    $prefix = "$( & $brew.Source --prefix openssl@3 2>$null )".Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $prefix) {
+        Fail 'Homebrew openssl@3 is not installed on Darwin'
+    }
+    $lib = Join-Path $prefix 'lib'
+    if (-not (Test-Path -LiteralPath $lib -PathType Container)) {
+        Fail "OpenSSL library directory is missing: $lib"
+    }
+    return $lib
+}
+
 if (-not (Test-Path -LiteralPath (Join-Path $Checkout '.git'))) {
     Fail 'deps/mormot2 is missing; run tools/get-mormot.ps1 first'
 }
@@ -140,7 +179,15 @@ else {
     # the single string returned by an if-expression and splats its characters.
     $runArgs += '--nontp'
 }
-New-Item -ItemType Directory -Force -Path (Join-Path $BinDir 'data') | Out-Null
+$dataDir = Join-Path $BinDir 'data'
+New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+Install-ProcessReferenceData $dataDir
+if ($TargetOs -eq 'darwin') {
+    # Homebrew's keg-only libraries are not in the default dyld search path.
+    # mORMot reads this documented override before registering TLS support.
+    $env:OPENSSL_LIBPATH = Resolve-OpenSslPath
+    Write-Host "[mormot2-regression] OpenSSL libraries: $env:OPENSSL_LIBPATH"
+}
 Write-Host "[mormot2-regression] running $exe $($runArgs -join ' ')"
 Push-Location $BinDir
 try {

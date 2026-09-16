@@ -114,6 +114,7 @@ $Target = "$TargetOs-$TargetCpu"
 Write-Host "[upstream-tests/$Mode] FPC $Version target $Target"
 
 $core = Read-Source 'src/core/mormot.core.interfaces.pas'
+$mac = Read-Source 'src/core/mormot.core.os.mac.pas'
 $quick = Read-Source 'src/lib/mormot.lib.quickjs.pas'
 $static = Read-Source 'src/lib/mormot.lib.static.pas'
 $header = Read-Source 'res/static/libquickjs/quickjs.h'
@@ -138,6 +139,9 @@ if ($Mode -eq 'Pristine') {
         'the pinned signed malloc_usable_size result'
     Require-Literal $core 'cmp  x15, imvCurrency' `
         'the pinned AArch64 Currency/d0 branch'
+    Require-Literal $mac `
+        'kIOMasterPortDefault: mach_port_t; cvar; external;' `
+        'the pinned address-based IOKit constant import'
     if ($core.Contains('FPC SysV x64 returns Currency through x87 ST0')) {
         Fail 'the pristine source unexpectedly contains the proposed x87 fix'
     }
@@ -173,6 +177,12 @@ else {
     Require-Literal $core `
         'AArch64 returns Currency as its scaled Int64 value in x0' `
         'AArch64 Currency retrieval'
+    Require-Literal $mac `
+        'kIOMasterPortDefault: mach_port_t = 0;' `
+        'address-free IOKit default port constant'
+    if ($mac.Contains('kIOMasterPortDefault: mach_port_t; cvar; external;')) {
+        Fail 'the patched macOS source still imports kIOMasterPortDefault as a cvar'
+    }
 }
 
 Push-Location $RepoRoot
@@ -213,6 +223,13 @@ try {
     $currencyCompile = Invoke-Compile 'currency-return' `
         'test/currency_return_test.pas'
     if ($currencyCompile.Code -ne 0) {
+        if (($Mode -eq 'Pristine') -and ($TargetOs -eq 'darwin') -and
+            ($currencyCompile.Text -match 'kIOMasterPortDefault') -and
+            ($currencyCompile.Text -match 'does not have address')) {
+            Write-Host ('[upstream-tests/Pristine] macOS IOKit absolute-symbol ' +
+                "link defect CONFIRMED on $Target")
+            return
+        }
         Fail "Currency regression program did not compile; see $($currencyCompile.Log)"
     }
     $extension = if ($TargetOs -eq 'win64') { '.exe' } else { '' }
