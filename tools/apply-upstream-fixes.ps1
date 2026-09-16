@@ -56,7 +56,9 @@ if ($CheckOnly) {
 git -C $Checkout apply --ignore-space-change --whitespace=error-all $Patch
 if ($LASTEXITCODE -ne 0) { Fail 'git apply failed' }
 
-git -C $Checkout diff --check
+# Upstream stores these Pascal sources as CRLF. Keep every whitespace check
+# enabled, but do not mistake the CR line terminator for trailing content.
+git -c core.whitespace=cr-at-eol -C $Checkout diff --check
 if ($LASTEXITCODE -ne 0) { Fail 'patched tree contains whitespace errors' }
 
 $expected = @(
