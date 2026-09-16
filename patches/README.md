@@ -9,7 +9,8 @@ commit recorded in `mormot.lock`. It corrects the cross-platform
 `tools/apply-upstream-fixes.ps1`, which verifies the pin, clean tree,
 preflight, whitespace, and three-file patch surface. Its only relaxed match
 rule is line-ending whitespace, needed because the portable LF patch targets
-upstream Pascal blobs stored as CRLF.
+upstream Pascal blobs stored as CRLF. `.gitattributes` disables checkout-time
+conversion of the patch so Git for Windows receives the same bytes.
 
 The rationale and four-runner differential are documented in
 [`docs/2026-09-16-upstream-fixes.md`](../docs/2026-09-16-upstream-fixes.md).

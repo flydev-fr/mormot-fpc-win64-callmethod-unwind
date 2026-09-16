@@ -14,6 +14,7 @@ and refuses an unexpected patch surface. The patch is stored with portable LF
 line endings; application ignores only line-ending whitespace because the
 locked upstream Pascal blobs use CRLF. The full commit SHA and three-file
 surface check prevent that normalization from weakening the source pin.
+`.gitattributes` keeps the patch itself LF on Windows runners.
 
 ## 1. `Currency` result ABI in `CallMethod`
 

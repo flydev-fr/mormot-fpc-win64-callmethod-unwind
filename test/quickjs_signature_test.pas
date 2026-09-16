@@ -1,7 +1,6 @@
 program quickjs_signature_test;
 
 {$mode ObjFPC}{$H+}
-{$I mormot.defines.inc}
 
 uses
   mormot.lib.quickjs;

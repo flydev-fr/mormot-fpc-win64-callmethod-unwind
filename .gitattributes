@@ -1,0 +1,3 @@
+# The portable patch intentionally stays LF on Windows runners. Converting it
+# to CRLF makes Git for Windows reject its normalized empty context lines.
+patches/mormot2-2026-09-16-abi-fixes.patch -text

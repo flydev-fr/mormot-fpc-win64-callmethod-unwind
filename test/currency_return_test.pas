@@ -1,7 +1,6 @@
 program currency_return_test;
 
 {$mode ObjFPC}{$H+}
-{$I mormot.defines.inc}
 
 {$ifdef OSWINDOWS}
   {$apptype console}
