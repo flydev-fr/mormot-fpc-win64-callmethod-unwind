@@ -1,6 +1,24 @@
 # The generated source modification
 
-There is no static patch file: `tools/prepare.ps1` generates the modified
+## Current proposal at the 2026-09-16 pin
+
+`mormot2-2026-09-16-abi-fixes.patch` applies directly to the exact mORMot2
+commit recorded in `mormot.lock`. It corrects the cross-platform
+`Currency` result ABI, the QuickJS runtime parameter type, and the C
+`size_t` allocator bridge. Apply it through
+`tools/apply-upstream-fixes.ps1`, which verifies the pin, clean tree,
+preflight, whitespace, and three-file patch surface. Its only relaxed match
+rule is line-ending whitespace, needed because the portable LF patch targets
+upstream Pascal blobs stored as CRLF. `.gitattributes` disables checkout-time
+conversion of the patch so Git for Windows receives the same bytes.
+
+The rationale and four-runner differential are documented in
+[`docs/2026-09-16-upstream-fixes.md`](../docs/2026-09-16-upstream-fixes.md).
+
+## Historical Win64 MASM patch
+
+For the historical MASM workaround, there is no static patch file:
+`tools/prepare.ps1` generates the modified
 `mormot.core.interfaces.pas` deterministically from the pristine pinned git
 blob, so the change can never drift from the pinned source. The script
 recognizes exactly two valid states of the target file — pristine pinned or

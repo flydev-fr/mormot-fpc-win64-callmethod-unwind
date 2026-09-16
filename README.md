@@ -1,5 +1,25 @@
 # FPC Win64 unwind issue in mORMot CallMethod
 
+## 2026-09-16 cross-platform follow-up
+
+The original Win64 unwind and Currency defects documented below are fixed
+upstream. This repository now also pins the exact 2026-09-16 mORMot2 Daily
+landing point, build 2.4.16897 at
+[`102fa3d99708d839948eef595d1d02d2e8fdbb45`](https://github.com/synopse/mORMot2/commit/102fa3d99708d839948eef595d1d02d2e8fdbb45),
+and carries a reviewable patch for three remaining ABI/binding issues:
+
+* FPC SysV x86-64 and AArch64 `Currency` results in `CallMethod`;
+* the QuickJS `JS_SetMaxStackSize(JSRuntime *)` Pascal declaration;
+* C `size_t` versus Pascal allocator widths.
+
+See [the 2026-09-16 fix rationale and test matrix](docs/2026-09-16-upstream-fixes.md).
+The workflow clones the locked mORMot tree, confirms the defects on pristine
+source, applies the patch transactionally, and requires the corrected tests
+on Windows x64, Linux x64, macOS x64, and macOS ARM64.
+
+The remainder of this README is the historical Win64 unwind reproducer and
+its upstream-resolution record.
+
 **Update**: fixed by commit [896f1c1](https://github.com/synopse/mORMot2/commit/896f1c1c66653c5c995ec9790117f0d6b8eeb427)  
 To confirm it, I pointed mormot.lock at this commit (statics pin unchanged), fetched it, and ran `run-tests.ps1 -PristineRepro` - the same 12-case suite, compiled against unmodified upstream source, no MASM replacement, no define. 
 
@@ -193,7 +213,29 @@ The pristine half of the differential is reproducible with
 `run-tests.ps1 -PristineRepro` (the verbose case output shows the actual
 `{"result":[0]}` body).
 
-## Run the tests
+## Verify the 2026-09-16 proposal
+
+```powershell
+# clone the exact lock, confirm the pristine defects, apply the proposal,
+# then require the corrected regression suite
+pwsh tools/get-mormot.ps1
+pwsh tools/apply-upstream-fixes.ps1 -CheckOnly
+pwsh tools/run-upstream-tests.ps1 -Mode Pristine
+pwsh tools/apply-upstream-fixes.ps1
+pwsh tools/run-upstream-tests.ps1 -Mode Patched
+```
+
+`.github/workflows/demonstrate.yml` executes this differential on Windows
+x64, Linux x64, macOS x64, and macOS ARM64. The pristine phase must expose
+the target-specific defects, while the patched phase must pass all five
+interface-service Currency cases plus the QuickJS and allocator gates.
+
+## Historical test commands (original reproduction pin)
+
+The commands below describe the original Win64 unwind reproducer. They are
+kept as an archival record and target the historical source layout; the
+current `mormot.lock` and automated workflow use the 2026-09-16 verification
+above.
 
 ```powershell
 # full workflow: fetch, prepare, force rebuild, binary gate, runtime suite,
@@ -212,15 +254,7 @@ Any failure exits nonzero. The dependency is restored to the pristine pin
 in a `finally` block (skip with `-NoRestore` to inspect the prepared
 state).
 
-A GitHub Actions workflow (`.github/workflows/demonstrate.yml`) runs the
-same two halves on a clean `windows-latest` runner — first the pristine
-reproduction, then the fix — and writes a bug-vs-fix comparison to the job
-summary. It fails if either half stops holding. After a green
-demonstration it also packages `dist/x64callmethod.o` (fingerprint-tied
-to the validated object), uploads it as the `x64callmethod-dist` run
-artifact, and attaches it to the GitHub release on tag builds.
-
-## Expected results
+## Historical expected results
 
 ```text
 mORMot/FPC Win64 CallMethod unwind test
@@ -256,14 +290,20 @@ dist/README.md                  the packaged object: provenance, integration
 tools/make-dist.ps1             package dist/x64callmethod.o (not committed)
 
 patches/README.md               exact shape of the generated source change
+patches/mormot2-2026-09-16-abi-fixes.patch  current three-file proposal
 test/callmethod_unwind_test.pas 12-case ABI/exception suite over TRestServer.Uri()
+test/currency_return_test.pas   five real service calls across target ABIs
+test/quickjs_signature_test.pas compile-time JSRuntime signature gate
+test/static_allocator_compile_test.pas  C size_t / Pascal width gate
 tools/get-mormot.ps1            deterministic pinned fetch into deps/mormot2
+tools/apply-upstream-fixes.ps1  exact-pin transactional patch application
+tools/run-upstream-tests.ps1    pristine-versus-patched cross-platform suite
 tools/prepare.ps1               transactional install of the replacement
 tools/restore.ps1               restore pristine pin, remove generated artifacts
 tools/check-unwind.ps1          final-PE RUNTIME_FUNCTION/.pdata/.xdata gate
 tools/run-tests.ps1             one-command workflow (+ -PristineRepro mode)
 docs/reference-results.md       recorded reference results
-.github/workflows/demonstrate.yml  bug-then-fix demonstration with job summary
+.github/workflows/demonstrate.yml  four-runner differential verification
 ```
 
 ## Scope and limitations
