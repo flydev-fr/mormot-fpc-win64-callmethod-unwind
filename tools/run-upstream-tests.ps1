@@ -35,16 +35,15 @@ function Resolve-Fpc([string]$ExplicitPath) {
             if ($null -ne $command) { $candidates += $command.Source }
         }
         $candidates += @(
-            'C:\lazarus\fpc\3.2.2\bin\x86_64-win64\fpc.exe',
-            'C:\fpc\3.2.2\bin\x86_64-win64\fpc.exe'
+            'C:\fpc\3.2.3\bin\x86_64-win64\fpc.exe'
         )
     }
     foreach ($candidate in $candidates | Select-Object -Unique) {
         if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
         $version = (& $candidate -iV 2>$null | Select-Object -First 1)
-        if ("$version".Trim() -eq '3.2.2') { return $candidate }
+        if ("$version".Trim() -eq '3.2.3') { return $candidate }
     }
-    Fail 'FPC 3.2.2 was not found'
+    Fail 'FPC 3.2.3 was not found'
 }
 
 function Read-Source([string]$RelativePath) {
@@ -115,6 +114,7 @@ $Target = "$TargetOs-$TargetCpu"
 Write-Host "[upstream-tests/$Mode] FPC $Version target $Target"
 
 $core = Read-Source 'src/core/mormot.core.interfaces.pas'
+$mac = Read-Source 'src/core/mormot.core.os.mac.pas'
 $quick = Read-Source 'src/lib/mormot.lib.quickjs.pas'
 $static = Read-Source 'src/lib/mormot.lib.static.pas'
 $header = Read-Source 'res/static/libquickjs/quickjs.h'
@@ -139,6 +139,12 @@ if ($Mode -eq 'Pristine') {
         'the pinned signed malloc_usable_size result'
     Require-Literal $core 'cmp  x15, imvCurrency' `
         'the pinned AArch64 Currency/d0 branch'
+    Require-Literal $mac `
+        'kIOMasterPortDefault: mach_port_t; cvar; external;' `
+        'the pinned address-based IOKit constant import'
+    Require-Literal $mac `
+        'CFSTR(id), kCFAllocatorDefault, 0);' `
+        'the pinned address-based CoreFoundation allocator import'
     if ($core.Contains('FPC SysV x64 returns Currency through x87 ST0')) {
         Fail 'the pristine source unexpectedly contains the proposed x87 fix'
     }
@@ -174,6 +180,17 @@ else {
     Require-Literal $core `
         'AArch64 returns Currency as its scaled Int64 value in x0' `
         'AArch64 Currency retrieval'
+    Require-Literal $mac `
+        'kIOMasterPortDefault: mach_port_t = 0;' `
+        'address-free IOKit default port constant'
+    if ($mac.Contains('kIOMasterPortDefault: mach_port_t; cvar; external;')) {
+        Fail 'the patched macOS source still imports kIOMasterPortDefault as a cvar'
+    }
+    Require-Literal $mac 'CFSTR(id), nil, 0);' `
+        'address-free CoreFoundation default allocator value'
+    if ($mac.Contains('kCFAllocatorDefault, 0')) {
+        Fail 'the patched macOS source still references kCFAllocatorDefault by address'
+    }
 }
 
 Push-Location $RepoRoot
@@ -214,6 +231,13 @@ try {
     $currencyCompile = Invoke-Compile 'currency-return' `
         'test/currency_return_test.pas'
     if ($currencyCompile.Code -ne 0) {
+        if (($Mode -eq 'Pristine') -and ($TargetOs -eq 'darwin') -and
+            ($currencyCompile.Text -match 'kIOMasterPortDefault') -and
+            ($currencyCompile.Text -match 'does not have address')) {
+            Write-Host ('[upstream-tests/Pristine] macOS IOKit absolute-symbol ' +
+                "link defect CONFIRMED on $Target")
+            return
+        }
         Fail "Currency regression program did not compile; see $($currencyCompile.Log)"
     }
     $extension = if ($TargetOs -eq 'win64') { '.exe' } else { '' }

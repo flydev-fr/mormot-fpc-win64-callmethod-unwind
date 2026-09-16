@@ -18,7 +18,7 @@ jobs:
   verify:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -48,7 +48,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Install FPC 3.2.2 on Windows
+      - name: Install FPC 3.2.2 bootstrap on Windows
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
@@ -74,7 +74,7 @@ jobs:
           }
           $bin | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
-      - name: Install FPC 3.2.2 on Linux
+      - name: Install FPC 3.2.2 bootstrap on Linux
         if: matrix.platform == 'linux'
         shell: bash
         run: |
@@ -82,7 +82,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes fpc
 
-      - name: Install checksum-pinned FPC 3.2.2 on macOS
+      - name: Install checksum-pinned FPC 3.2.2 bootstrap on macOS
         if: matrix.platform == 'macos'
         shell: bash
         run: |
@@ -122,6 +122,12 @@ jobs:
           test -f /etc/fpc.cfg
           echo '/usr/local/bin' >> "$GITHUB_PATH"
 
+      - name: Build pinned FPC 3.2.3 toolchain
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tools/install-fpc-3.2.3.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'FPC 3.2.3 build failed' }
+
       - name: Verify toolchain target
         shell: pwsh
         run: |
@@ -129,8 +135,11 @@ jobs:
           $targetOs = (fpc -iTO).Trim().ToLowerInvariant()
           $targetCpu = (fpc -iTP).Trim().ToLowerInvariant()
           Write-Host "FPC $version $targetCpu-$targetOs"
-          if ($version -ne '3.2.2') {
-            throw "expected FPC 3.2.2, got $version"
+          if ($version -ne '3.2.3') {
+            throw "expected FPC 3.2.3, got $version"
+          }
+          if ($env:FPC_323_SOURCE_COMMIT -cne '483299735faef392a746646bb3d5f5737a9e53a5') {
+            throw "unexpected FPC 3.2.3 source pin: $env:FPC_323_SOURCE_COMMIT"
           }
           if (($targetOs -ne '${{ matrix.expected_os }}') -or
               ($targetCpu -ne '${{ matrix.expected_cpu }}')) {
@@ -167,6 +176,23 @@ jobs:
           pwsh -NoProfile -File tools/run-upstream-tests.ps1 -Mode Patched
           if ($LASTEXITCODE -ne 0) { throw 'patched regression suite failed' }
 
+      - name: Normalize macOS test hostname
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # test.core.base bounds two syslog messages at 400 bytes. Hosted
+          # ARM64 runner hostnames can exceed 80 characters, so use a stable
+          # short host without changing any mORMot source or test selection.
+          sudo hostname mormot-ci
+          hostname
+
+      - name: Compile and run full mORMot2 regression suite
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tools/run-mormot2-tests.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'full mORMot2 regression suite failed' }
+
       - name: Summary
         if: always()
         shell: pwsh
@@ -176,8 +202,11 @@ jobs:
           ## mORMot2 proposed upstream fixes — ${{ matrix.name }}
 
           - Pin: ``$pin`` (build 2.4.16897, 2026-09-16 edition)
+          - Compiler: FPC 3.2.3 from ``$env:FPC_323_SOURCE_COMMIT``
           - Differential: pristine source first, then the exact patch
           - Runtime: five interface-service ``Currency`` return shapes
           - Compile-time: QuickJS ``JSRuntime`` signature
           - Source/compile gate: C ``size_t`` ↔ Pascal ``PtrUInt`` allocators
+          - Darwin link gate: address-free IOKit/CoreFoundation default constants
+          - Upstream coverage: full official ``test/mormot2tests.dpr`` suite with checksum-pinned reference data
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY

@@ -63,6 +63,7 @@ if ($LASTEXITCODE -ne 0) { Fail 'patched tree contains whitespace errors' }
 
 $expected = @(
     'src/core/mormot.core.interfaces.pas',
+    'src/core/mormot.core.os.mac.pas',
     'src/lib/mormot.lib.quickjs.pas',
     'src/lib/mormot.lib.static.pas'
 )

@@ -6,16 +6,19 @@ The original Win64 unwind and Currency defects documented below are fixed
 upstream. This repository now also pins the exact 2026-09-16 mORMot2 Daily
 landing point, build 2.4.16897 at
 [`102fa3d99708d839948eef595d1d02d2e8fdbb45`](https://github.com/synopse/mORMot2/commit/102fa3d99708d839948eef595d1d02d2e8fdbb45),
-and carries a reviewable patch for three remaining ABI/binding issues:
+and carries a reviewable patch for four remaining ABI/binding issues:
 
 * FPC SysV x86-64 and AArch64 `Currency` results in `CallMethod`;
 * the QuickJS `JS_SetMaxStackSize(JSRuntime *)` Pascal declaration;
-* C `size_t` versus Pascal allocator widths.
+* C `size_t` versus Pascal allocator widths;
+* macOS absolute IOKit/CoreFoundation default constants.
 
 See [the 2026-09-16 fix rationale and test matrix](docs/2026-09-16-upstream-fixes.md).
 The workflow clones the locked mORMot tree, confirms the defects on pristine
 source, applies the patch transactionally, and requires the corrected tests
-on Windows x64, Linux x64, macOS x64, and macOS ARM64.
+on Windows x64, Linux x64, macOS x64, and macOS ARM64. It then runs the full
+official mORMot2 suite with checksum-pinned process fixtures; macOS resolves
+Homebrew OpenSSL explicitly so its HTTPS tests run as well.
 
 The remainder of this README is the historical Win64 unwind reproducer and
 its upstream-resolution record.
@@ -228,7 +231,12 @@ pwsh tools/run-upstream-tests.ps1 -Mode Patched
 `.github/workflows/demonstrate.yml` executes this differential on Windows
 x64, Linux x64, macOS x64, and macOS ARM64. The pristine phase must expose
 the target-specific defects, while the patched phase must pass all five
-interface-service Currency cases plus the QuickJS and allocator gates.
+interface-service Currency cases plus the QuickJS and allocator gates. Each
+patched runner then compiles and executes the complete official
+`test/mormot2tests.dpr` Core/ORM/SOA regression suite. All verification uses
+FPC 3.2.3 built from the pinned official `fixes_3_2` commit
+`483299735faef392a746646bb3d5f5737a9e53a5`; FPC 3.2.2 is only the bootstrap
+compiler used to build that toolchain.
 
 ## Historical test commands (original reproduction pin)
 
@@ -290,14 +298,16 @@ dist/README.md                  the packaged object: provenance, integration
 tools/make-dist.ps1             package dist/x64callmethod.o (not committed)
 
 patches/README.md               exact shape of the generated source change
-patches/mormot2-2026-09-16-abi-fixes.patch  current three-file proposal
+patches/mormot2-2026-09-16-abi-fixes.patch  current four-file proposal
 test/callmethod_unwind_test.pas 12-case ABI/exception suite over TRestServer.Uri()
 test/currency_return_test.pas   five real service calls across target ABIs
 test/quickjs_signature_test.pas compile-time JSRuntime signature gate
 test/static_allocator_compile_test.pas  C size_t / Pascal width gate
 tools/get-mormot.ps1            deterministic pinned fetch into deps/mormot2
 tools/apply-upstream-fixes.ps1  exact-pin transactional patch application
+tools/install-fpc-3.2.3.ps1     pinned native FPC 3.2.3 toolchain build
 tools/run-upstream-tests.ps1    pristine-versus-patched cross-platform suite
+tools/run-mormot2-tests.ps1     full official post-patch mORMot2 test suite
 tools/prepare.ps1               transactional install of the replacement
 tools/restore.ps1               restore pristine pin, remove generated artifacts
 tools/check-unwind.ps1          final-PE RUNTIME_FUNCTION/.pdata/.xdata gate

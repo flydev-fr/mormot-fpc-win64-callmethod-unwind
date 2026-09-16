@@ -5,14 +5,15 @@ This repository pins mORMot2 commit
 the build `2.4.16897` landing point from the 2026-09-16 mORMot2 Daily
 edition. The patch
 [`patches/mormot2-2026-09-16-abi-fixes.patch`](../patches/mormot2-2026-09-16-abi-fixes.patch)
-contains three independent corrections found while reviewing that exact tree.
+contains four independent corrections found while reviewing and testing that
+exact tree.
 
 The patch is intentionally applied to a clone under `deps/mormot2`; no
 generated or modified dependency file is committed. `tools/apply-upstream-fixes.ps1`
 checks the exact locked SHA, requires a clean clone, runs `git apply --check`,
 and refuses an unexpected patch surface. The patch is stored with portable LF
 line endings; application ignores only line-ending whitespace because the
-locked upstream Pascal blobs use CRLF. The full commit SHA and three-file
+locked upstream Pascal blobs use CRLF. The full commit SHA and four-file
 surface check prevent that normalization from weakening the source pin.
 `.gitattributes` keeps the patch itself LF on Windows runners.
 
@@ -22,8 +23,9 @@ Report:
 [`mormot-imvcurrency-rax-sysv-x64.md`](https://github.com/flydev-fr/pweb/blob/main/docs/upstream/mormot-imvcurrency-rax-sysv-x64.md)
 
 The shared x86-64 result path currently preserves RAX for `imvCurrency`.
-That is correct on FPC Win64, but not on FPC SysV x86-64. FPC 3.2.2's
-[`get_funcretloc`](https://github.com/fpc/FPCSource/blob/release_3_2_2/compiler/x86_64/cpupara.pas)
+That is correct on FPC Win64, but not on FPC SysV x86-64. The pinned FPC
+3.2.3 source's
+[`get_funcretloc`](https://github.com/fpc/FPCSource/blob/483299735faef392a746646bb3d5f5737a9e53a5/compiler/x86_64/cpupara.pas)
 places `Currency`/`Comp` function results in the x87 result register on this
 ABI. The existing 32-bit `CallMethod` implementation already handles the
 same representation with `fistp`.
@@ -94,9 +96,31 @@ headers, checks the overflow guards, and force-compiles
 matrix; it should additionally be compiled by upstream's Delphi CI before
 merge.
 
+## 4. macOS absolute default-constant linkage
+
+`mormot.core.os.mac.pas` declared `kIOMasterPortDefault` as an external
+`cvar`. [Apple's IOKit implementation](https://github.com/apple-oss-distributions/IOKitUser/blob/323ead896d04424f87184d8f6ff0cce811aab106/IOKitLib.c#L112-L113)
+defines it as a constant `MACH_PORT_NULL` value, and the
+[corresponding header](https://github.com/apple-oss-distributions/IOKitUser/blob/323ead896d04424f87184d8f6ff0cce811aab106/IOKitLib.h#L129-L135)
+marks it as the deprecated name of `kIOMainPortDefault`. Current macOS x86-64
+linkers expose that value as an absolute symbol, so asking for its address
+fails with `target '_kIOMasterPortDefault' does not have address`.
+
+The patch maps the value to a typed Pascal constant equal to zero. This keeps
+the IOKit call semantics unchanged and removes the invalid relocation. The
+same unit passed `kCFAllocatorDefault` to three CoreFoundation calls. Apple's
+[CoreFoundation implementation](https://github.com/apple-oss-distributions/CF/blob/dc54c6bb1c1e5e0b9486c1d26dd5bef110b20bf3/CFBase.c#L388)
+defines that symbol as `NULL`, but importing its address triggers the same
+Mach-O x86-64 fixup error. The patch therefore passes `nil` directly at those
+call sites.
+
+The pristine differential source-gates both address-based forms; the patched
+targeted program and the complete mORMot2 suite must then link and run on both
+macOS x86-64 and ARM64.
+
 ## Reproduce locally
 
-PowerShell 7, Git, FPC 3.2.2, and the platform linker are required.
+PowerShell 7, Git, FPC 3.2.3, and the platform linker are required.
 
 ```powershell
 pwsh tools/get-mormot.ps1
@@ -113,5 +137,29 @@ The GitHub Actions workflow runs that exact sequence on:
 - `macos-15-intel` / x86-64;
 - `macos-15` / ARM64.
 
-The macOS compiler installer and mORMot static archive are checksum-pinned;
-the mORMot source is fetched by full commit SHA.
+The test compiler is built from the official FPC `fixes_3_2` source at
+commit `483299735faef392a746646bb3d5f5737a9e53a5`, which identifies itself as
+FPC 3.2.3. FPC 3.2.2 is used only to bootstrap that pinned compiler; no
+mORMot2 source or test is compiled with the bootstrap toolchain.
+
+After the targeted patched checks pass, every runner also compiles and runs
+the official upstream `test/mormot2tests.dpr` Core/ORM/SOA regression suite
+against the patched checkout. CI defines `NO_UI` because no desktop widgetset
+is installed and passes `nontp` to disable the sole public-network probe. The
+suite's `process-ref.zip` input is downloaded before execution, verified as
+SHA-256
+`0ed513dd4dcf1a549387ae4c8cc6222456a4de149f1c928a12f6d6086c214873`,
+and extracted into its normal `data` directory, so the JSON and Mustache
+assertions do not depend on in-process HTTP access. On macOS the runner also
+points `OPENSSL_LIBPATH` at Homebrew's `openssl@3` libraries, ensuring the HTTPS
+server/client assertions execute instead of failing library discovery.
+
+GitHub's generated macOS ARM64 hostname can be long enough to violate two
+fixed 400-byte syslog-message bounds in `test.core.base`. The workflow assigns
+the ephemeral runner the short hostname `mormot-ci` before the complete suite;
+this changes only test-environment metadata and does not patch or skip those
+assertions. All official tests must emit the upstream success marker with a
+zero exit status.
+
+The bootstrap installers and mORMot static archive are checksum-pinned; both
+the FPC and mORMot source trees are fetched by full commit SHA.

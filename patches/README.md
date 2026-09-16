@@ -4,10 +4,10 @@
 
 `mormot2-2026-09-16-abi-fixes.patch` applies directly to the exact mORMot2
 commit recorded in `mormot.lock`. It corrects the cross-platform
-`Currency` result ABI, the QuickJS runtime parameter type, and the C
-`size_t` allocator bridge. Apply it through
+`Currency` result ABI, the QuickJS runtime parameter type, the C `size_t`
+allocator bridge, and the macOS IOKit/CoreFoundation default constants. Apply it through
 `tools/apply-upstream-fixes.ps1`, which verifies the pin, clean tree,
-preflight, whitespace, and three-file patch surface. Its only relaxed match
+preflight, whitespace, and four-file patch surface. Its only relaxed match
 rule is line-ending whitespace, needed because the portable LF patch targets
 upstream Pascal blobs stored as CRLF. `.gitattributes` disables checkout-time
 conversion of the patch so Git for Windows receives the same bytes.
