@@ -228,7 +228,9 @@ pwsh tools/run-upstream-tests.ps1 -Mode Patched
 `.github/workflows/demonstrate.yml` executes this differential on Windows
 x64, Linux x64, macOS x64, and macOS ARM64. The pristine phase must expose
 the target-specific defects, while the patched phase must pass all five
-interface-service Currency cases plus the QuickJS and allocator gates.
+interface-service Currency cases plus the QuickJS and allocator gates. Each
+patched runner then compiles and executes the complete official
+`test/mormot2tests.dpr` Core/ORM/SOA regression suite.
 
 ## Historical test commands (original reproduction pin)
 
@@ -298,6 +300,7 @@ test/static_allocator_compile_test.pas  C size_t / Pascal width gate
 tools/get-mormot.ps1            deterministic pinned fetch into deps/mormot2
 tools/apply-upstream-fixes.ps1  exact-pin transactional patch application
 tools/run-upstream-tests.ps1    pristine-versus-patched cross-platform suite
+tools/run-mormot2-tests.ps1     full official post-patch mORMot2 test suite
 tools/prepare.ps1               transactional install of the replacement
 tools/restore.ps1               restore pristine pin, remove generated artifacts
 tools/check-unwind.ps1          final-PE RUNTIME_FUNCTION/.pdata/.xdata gate

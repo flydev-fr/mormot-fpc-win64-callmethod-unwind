@@ -113,5 +113,12 @@ The GitHub Actions workflow runs that exact sequence on:
 - `macos-15-intel` / x86-64;
 - `macos-15` / ARM64.
 
+After the targeted patched checks pass, every runner also compiles and runs
+the official upstream `test/mormot2tests.dpr` Core/ORM/SOA regression suite
+against the patched checkout. CI defines `NO_UI` because no desktop widgetset
+is installed and passes `nontp` to disable the sole public-network probe; all
+other official tests execute normally and must emit the upstream success
+marker with a zero exit status.
+
 The macOS compiler installer and mORMot static archive are checksum-pinned;
 the mORMot source is fetched by full commit SHA.

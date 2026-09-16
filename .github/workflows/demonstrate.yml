@@ -167,6 +167,12 @@ jobs:
           pwsh -NoProfile -File tools/run-upstream-tests.ps1 -Mode Patched
           if ($LASTEXITCODE -ne 0) { throw 'patched regression suite failed' }
 
+      - name: Compile and run full mORMot2 regression suite
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tools/run-mormot2-tests.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'full mORMot2 regression suite failed' }
+
       - name: Summary
         if: always()
         shell: pwsh
@@ -180,4 +186,5 @@ jobs:
           - Runtime: five interface-service ``Currency`` return shapes
           - Compile-time: QuickJS ``JSRuntime`` signature
           - Source/compile gate: C ``size_t`` ↔ Pascal ``PtrUInt`` allocators
+          - Upstream coverage: full official ``test/mormot2tests.dpr`` suite
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
